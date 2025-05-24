@@ -29,25 +29,6 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  // Initialize OpenCV when component mounts
-  const initializeDetector = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await detector.initialize();
-      setIsDetectorReady(true);
-      
-      // Load available models after detector is ready
-      await loadAvailableModels();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to initialize detector"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [detector]);
-
   // Load available models from backend
   const loadAvailableModels = useCallback(async () => {
     try {
@@ -65,6 +46,25 @@ export default function Home() {
       setIsLoadingModels(false);
     }
   }, [detector]);
+
+  // Initialize OpenCV when component mounts
+  const initializeDetector = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await detector.initialize();
+      setIsDetectorReady(true);
+      
+      // Load available models after detector is ready
+      await loadAvailableModels();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to initialize detector"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [detector, loadAvailableModels]);
 
   // Handle model selection change
   const handleModelSelection = useCallback((modelName: string, isSelected: boolean) => {

@@ -97,7 +97,6 @@ export class TrafficSignDetector {
   }
 
   private matToCanvas(mat: unknown): HTMLCanvasElement {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
     const canvas = document.createElement("canvas");
     this.cv.imshow(canvas, mat);
     return canvas;
@@ -433,9 +432,6 @@ export class TrafficSignDetector {
     if (detections.length === 0) return detections;
 
     try {
-      // Create form data
-      const formData = new FormData();
-
       // Convert image element to blob
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -451,6 +447,7 @@ export class TrafficSignDetector {
 
       if (!blob) throw new Error("Could not convert image to blob");
 
+      const formData = new FormData();
       formData.append("file", blob, "image.jpg");
       formData.append(
         "regions",
@@ -516,8 +513,6 @@ export class TrafficSignDetector {
     try {
       console.log("🔄 No regions detected, trying to classify entire image...");
 
-      // Create form data
-      const formData = new FormData();
 
       // Convert image element to blob
       const canvas = document.createElement("canvas");
@@ -534,6 +529,7 @@ export class TrafficSignDetector {
 
       if (!blob) throw new Error("Could not convert image to blob");
 
+      const formData = new FormData();
       formData.append("file", blob, "image.jpg");
 
       // Call single image classification endpoint
@@ -621,8 +617,6 @@ export class TrafficSignDetector {
     );
 
     try {
-      // Create form data
-      const formData = new FormData();
 
       // Convert image element to blob
       const canvas = document.createElement("canvas");
@@ -639,6 +633,7 @@ export class TrafficSignDetector {
 
       if (!blob) throw new Error("Could not convert image to blob");
 
+      const formData = new FormData();
       formData.append("file", blob, "image.jpg");
 
       // Prepare regions data
@@ -749,8 +744,6 @@ export class TrafficSignDetector {
         "🔄 No regions detected, trying full image classification with multiple models..."
       );
 
-      // Create form data
-      const formData = new FormData();
 
       // Convert image element to blob
       const canvas = document.createElement("canvas");
@@ -766,6 +759,9 @@ export class TrafficSignDetector {
       });
 
       if (!blob) throw new Error("Could not convert image to blob");
+
+      const formData = new FormData();
+      formData.append("file", blob, "image.jpg");
 
       // Send parallel requests for each selected model
       const modelPromises = selectedModels.map(async (modelName) => {
