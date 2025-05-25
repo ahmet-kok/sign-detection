@@ -54,7 +54,9 @@ export class TrafficSignDetector {
   private cv: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   private isReady: boolean = false;
   private readonly minImageSize = 500; // Minimum size for the longest dimension
-  private readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  private readonly API_BASE =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://ahmeetkok-traffic-sign-classifier.hf.space";
 
   constructor() {
     this.cv = null;
@@ -112,8 +114,8 @@ export class TrafficSignDetector {
       throw new Error("Could not get canvas context");
     }
 
-    const originalWidth = imageElement.width;
-    const originalHeight = imageElement.height;
+    const originalWidth = imageElement.naturalWidth;
+    const originalHeight = imageElement.naturalHeight;
     // const maxDimension = Math.max(originalWidth, originalHeight);
 
     // Calculate scale factor - only upscale if image is smaller than minimum size
@@ -226,17 +228,13 @@ export class TrafficSignDetector {
       for (let i = 0; i < contours.size(); i++) {
         const contour = contours.get(i);
         const area = this.cv.contourArea(contour);
-        if (area > 20) {
-          console.log(`Contour ${i}: area=${area}`);
-          console.log(`Scale factor: ${scaleFactor}`);
-        }
+
         // Filter by area (traffic signs should have reasonable size)
         const rect = this.cv.boundingRect(contour);
         const aspectRatio = rect.width / rect.height;
 
         // Traffic signs are usually square-ish or have specific aspect ratios
-        if (area > 20) {
-          /* if (aspectRatio > 0.7 && aspectRatio < 1.2) { */
+        if (aspectRatio > 0.7 && aspectRatio < 1.3) {
           // Additional checks for traffic sign characteristics
           const perimeter = this.cv.arcLength(contour, true);
           const approx = new this.cv.Mat();
@@ -358,11 +356,11 @@ export class TrafficSignDetector {
     const x = Math.max(0, detection.x - padding);
     const y = Math.max(0, detection.y - padding);
     const width = Math.min(
-      imageElement.width - x,
+      imageElement.naturalWidth - x,
       detection.width + padding * 2
     );
     const height = Math.min(
-      imageElement.height - y,
+      imageElement.naturalHeight - y,
       detection.height + padding * 2
     );
 
@@ -395,8 +393,8 @@ export class TrafficSignDetector {
       throw new Error("Could not get canvas context");
     }
 
-    canvas.width = imageElement.width;
-    canvas.height = imageElement.height;
+    canvas.width = imageElement.naturalWidth;
+    canvas.height = imageElement.naturalHeight;
 
     // Draw the original image
     ctx.drawImage(imageElement, 0, 0);
@@ -437,8 +435,8 @@ export class TrafficSignDetector {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not get canvas context");
 
-      canvas.width = imageElement.width;
-      canvas.height = imageElement.height;
+      canvas.width = imageElement.naturalWidth;
+      canvas.height = imageElement.naturalHeight;
       ctx.drawImage(imageElement, 0, 0);
 
       const blob = await new Promise<Blob>((resolve) => {
@@ -513,14 +511,13 @@ export class TrafficSignDetector {
     try {
       console.log("🔄 No regions detected, trying to classify entire image...");
 
-
       // Convert image element to blob
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not get canvas context");
 
-      canvas.width = imageElement.width;
-      canvas.height = imageElement.height;
+      canvas.width = imageElement.naturalWidth;
+      canvas.height = imageElement.naturalHeight;
       ctx.drawImage(imageElement, 0, 0);
 
       const blob = await new Promise<Blob>((resolve) => {
@@ -550,8 +547,8 @@ export class TrafficSignDetector {
         const fullImageDetection: DetectedSign = {
           x: 0,
           y: 0,
-          width: imageElement.width,
-          height: imageElement.height,
+          width: imageElement.naturalWidth,
+          height: imageElement.naturalHeight,
           confidence: 0.5, // Base confidence for full image classification
           classification: {
             predicted_class: result.result.predicted_class,
@@ -575,28 +572,30 @@ export class TrafficSignDetector {
   async getAvailableModels(): Promise<string[]> {
     try {
       console.log("🔍 Fetching available models...");
-      
+
       // Use Hugging Face Spaces API endpoint
       const response = await fetch(`${this.API_BASE}/models`, {
-        method: 'GET',
+        method: "GET",
       });
 
       if (!response.ok) {
-        console.warn('Failed to fetch models:', response.statusText);
+        console.warn("Failed to fetch models:", response.statusText);
         return [];
       }
 
       const result = await response.json();
-      
+
       if (result.success && result.available_models) {
-        console.log(`✅ Found ${result.available_models.length} models:`, result.available_models);
+        console.log(
+          `✅ Found ${result.available_models.length} models:`,
+          result.available_models
+        );
         return result.available_models;
       }
 
       return [];
-      
     } catch (error) {
-      console.warn('Error fetching available models:', error);
+      console.warn("Error fetching available models:", error);
       return [];
     }
   }
@@ -617,14 +616,13 @@ export class TrafficSignDetector {
     );
 
     try {
-
       // Convert image element to blob
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not get canvas context");
 
-      canvas.width = imageElement.width;
-      canvas.height = imageElement.height;
+      canvas.width = imageElement.naturalWidth;
+      canvas.height = imageElement.naturalHeight;
       ctx.drawImage(imageElement, 0, 0);
 
       const blob = await new Promise<Blob>((resolve) => {
@@ -744,14 +742,13 @@ export class TrafficSignDetector {
         "🔄 No regions detected, trying full image classification with multiple models..."
       );
 
-
       // Convert image element to blob
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not get canvas context");
 
-      canvas.width = imageElement.width;
-      canvas.height = imageElement.height;
+      canvas.width = imageElement.naturalWidth;
+      canvas.height = imageElement.naturalHeight;
       ctx.drawImage(imageElement, 0, 0);
 
       const blob = await new Promise<Blob>((resolve) => {
@@ -814,8 +811,8 @@ export class TrafficSignDetector {
         const fullImageDetection: DetectedSign = {
           x: 0,
           y: 0,
-          width: imageElement.width,
-          height: imageElement.height,
+          width: imageElement.naturalWidth,
+          height: imageElement.naturalHeight,
           confidence: 0.5, // Base confidence for full image classification
           classification: {
             predicted_class: bestResult.predicted_class,
