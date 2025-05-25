@@ -159,11 +159,14 @@ export class TrafficSignDetector {
     const src = this.cv.imread(workingCanvas);
     const gray = new this.cv.Mat();
     const contrast = new this.cv.Mat();
+    const bilateral = new this.cv.Mat();
     const blurred = new this.cv.Mat();
+    const morphed = new this.cv.Mat();
     const edges = new this.cv.Mat();
     const contours = new this.cv.MatVector();
     const hierarchy = new this.cv.Mat();
     const contourDisplay = src.clone();
+    let kernel: any = null; // Declare kernel variable
 
     try {
       // Step 2: Original image (after upscaling if applied)
@@ -180,24 +183,37 @@ export class TrafficSignDetector {
       const contrastCanvas = this.matToCanvas(contrast);
       clahe.delete();
 
-      // Step 5: Apply Gaussian blur to reduce noise on contrast-enhanced image
-      // Use larger kernel for upscaled images
-      const kernelSize = scaleFactor > 1 ? 7 : 5;
+      // Step 5: Advanced noise reduction with bilateral filter
+      this.cv.bilateralFilter(contrast, bilateral, 9, 75, 75);
+      const bilateralCanvas = this.matToCanvas(bilateral);
+
+      // Step 6: Apply stronger Gaussian blur to reduce noise further
+      // Increased kernel sizes for better noise reduction
+      const kernelSize = scaleFactor > 1 ? 11 : 9; // Increased from 7:5
       this.cv.GaussianBlur(
-        contrast,
+        bilateral,
         blurred,
         new this.cv.Size(kernelSize, kernelSize),
         0
       );
       const blurredCanvas = this.matToCanvas(blurred);
 
-      // Step 6: Edge detection with adjusted thresholds for upscaled images
-      const lowThreshold = scaleFactor > 1 ? 30 : 50;
-      const highThreshold = scaleFactor > 1 ? 100 : 150;
-      this.cv.Canny(blurred, edges, lowThreshold, highThreshold);
+      // Step 7: Morphological operations to reduce noise and fill gaps
+      kernel = this.cv.getStructuringElement(
+        this.cv.MORPH_ELLIPSE,
+        new this.cv.Size(3, 3)
+      );
+      // Opening operation (erosion followed by dilation) to remove noise
+      this.cv.morphologyEx(blurred, morphed, this.cv.MORPH_OPEN, kernel);
+      const morphedCanvas = this.matToCanvas(morphed);
+
+      // Step 8: Edge detection with adjusted thresholds for better triangle detection
+      const lowThreshold = scaleFactor > 1 ? 25 : 40; // Lowered for better triangle detection
+      const highThreshold = scaleFactor > 1 ? 80 : 120; // Lowered for better triangle detection
+      this.cv.Canny(morphed, edges, lowThreshold, highThreshold);
       const edgesCanvas = this.matToCanvas(edges);
 
-      // Step 7: Find contours
+      // Step 9: Find contours
       this.cv.findContours(
         edges,
         contours,
@@ -233,41 +249,71 @@ export class TrafficSignDetector {
         const rect = this.cv.boundingRect(contour);
         const aspectRatio = rect.width / rect.height;
 
-        // Traffic signs are usually square-ish or have specific aspect ratios
-        if (aspectRatio > 0.7 && aspectRatio < 1.3) {
+        // Focus on square-like traffic signs (aspect ratio 0.8 to 1.2)
+        // This catches most standard traffic signs while filtering out very elongated shapes
+        if (aspectRatio > 0.8 && aspectRatio < 1.2) {
           // Additional checks for traffic sign characteristics
           const perimeter = this.cv.arcLength(contour, true);
           const approx = new this.cv.Mat();
           this.cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
 
-          // Look for polygonal shapes (triangular, circular, rectangular signs)
-          // const vertices = approx.rows;
+          // Get number of vertices for shape analysis
+          const vertices = approx.rows;
 
-          /* if (vertices >= 3 && vertices <= 8) { */
-          // Calculate confidence based on area, aspect ratio, and vertex count
-          let confidence = 0.5;
+          // Calculate confidence based on shape characteristics
+          let confidence = 0.4; // Lower base confidence to catch more shapes
 
           // Prefer larger areas (adjust for scale)
           confidence += Math.min(
-            area / (10000 * scaleFactor * scaleFactor),
+            area / (8000 * scaleFactor * scaleFactor), // Lowered threshold
             0.3
           );
 
-          // Prefer square-like shapes
-          confidence += (1 - Math.abs(aspectRatio - 1)) * 0.2;
+          // Shape-specific confidence boosts
+          if (vertices >= 3 && vertices <= 8) {
+            // Triangle detection (3-4 vertices due to approximation)
+            if (vertices === 3 || vertices === 4) {
+              confidence += 0.2; // Boost for triangular shapes
+
+              // Additional boost for inverted triangles (taller than wide)
+              if (aspectRatio < 0.9) {
+                confidence += 0.1;
+              }
+            }
+
+            // Square/rectangular signs (4-6 vertices)
+            else if (vertices >= 4 && vertices <= 6) {
+              // Prefer square-like shapes
+              confidence += (1 - Math.abs(aspectRatio - 1)) * 0.2;
+            }
+
+            // Circular/octagonal signs (6-8 vertices)
+            else if (vertices >= 6 && vertices <= 8) {
+              confidence += 0.15;
+              // Prefer circular shapes (aspect ratio close to 1)
+              confidence += (1 - Math.abs(aspectRatio - 1)) * 0.15;
+            }
+          }
+
+          // Compactness check (perimeter² / area) - traffic signs are usually compact
+          const compactness = (perimeter * perimeter) / (4 * Math.PI * area);
+          if (compactness < 3.0) {
+            // More lenient for triangles
+            confidence += 0.1;
+          }
 
           // Scale back coordinates to original image size
-          detectedSigns.push({
-            x: Math.round(rect.x / scaleFactor),
-            y: Math.round(rect.y / scaleFactor),
-            width: Math.round(rect.width / scaleFactor),
-            height: Math.round(rect.height / scaleFactor),
-            confidence: Math.min(confidence, 1.0),
-          });
-          /* } */
+          if (confidence > 0.7) { // Lowered from 0.75 to 0.3 to allow more detections through
+            detectedSigns.push({
+              x: Math.round(rect.x / scaleFactor),
+              y: Math.round(rect.y / scaleFactor),
+              width: Math.round(rect.width / scaleFactor),
+              height: Math.round(rect.height / scaleFactor),
+              confidence: Math.min(confidence, 1.0),
+            });
+          }
 
           approx.delete();
-          /* } */
         }
 
         contour.delete();
@@ -277,6 +323,49 @@ export class TrafficSignDetector {
       const sortedDetections = detectedSigns
         .sort((a, b) => b.confidence - a.confidence)
         .slice(0, 5); // Return top 5 detections
+
+      // Additional triangle detection using Hough lines
+      const triangleDetections = this.detectTrianglesWithHoughLines(
+        edges,
+        scaleFactor,
+        imageElement
+      );
+
+      // Merge triangle detections with main detections, avoiding duplicates
+      const allDetections = [...sortedDetections];
+      triangleDetections.forEach((triDetection) => {
+        // Check if this triangle detection overlaps significantly with existing detections
+        const hasOverlap = allDetections.some((existing) => {
+          const overlapX = Math.max(
+            0,
+            Math.min(
+              existing.x + existing.width,
+              triDetection.x + triDetection.width
+            ) - Math.max(existing.x, triDetection.x)
+          );
+          const overlapY = Math.max(
+            0,
+            Math.min(
+              existing.y + existing.height,
+              triDetection.y + triDetection.height
+            ) - Math.max(existing.y, triDetection.y)
+          );
+          const overlapArea = overlapX * overlapY;
+          const existingArea = existing.width * existing.height;
+          const triArea = triDetection.width * triDetection.height;
+          const overlapRatio = overlapArea / Math.min(existingArea, triArea);
+          return overlapRatio > 0.3; // 30% overlap threshold
+        });
+
+        if (!hasOverlap) {
+          allDetections.push(triDetection);
+        }
+      });
+
+      // Re-sort and limit final detections
+      const finalDetections = allDetections
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 8); // Increased to 8 to accommodate more triangle detections
 
       const processingSteps: ProcessingSteps[] = [];
 
@@ -304,11 +393,19 @@ export class TrafficSignDetector {
         image: contrastCanvas.toDataURL(),
       });
       processingSteps.push({
-        name: "Blurred",
+        name: "Bilateral Filter",
+        image: bilateralCanvas.toDataURL(),
+      });
+      processingSteps.push({
+        name: "Gaussian Blur",
         image: blurredCanvas.toDataURL(),
       });
       processingSteps.push({
-        name: "Edges",
+        name: "Morphological Filter",
+        image: morphedCanvas.toDataURL(),
+      });
+      processingSteps.push({
+        name: "Edge Detection",
         image: edgesCanvas.toDataURL(),
       });
       processingSteps.push({
@@ -316,7 +413,7 @@ export class TrafficSignDetector {
         image: contoursCanvas.toDataURL(),
       });
       return {
-        detections: sortedDetections,
+        detections: finalDetections,
         processingSteps,
         scaleFactor,
       };
@@ -325,7 +422,10 @@ export class TrafficSignDetector {
       src.delete();
       gray.delete();
       contrast.delete();
+      bilateral.delete();
       blurred.delete();
+      morphed.delete();
+      if (kernel) kernel.delete();
       edges.delete();
       contours.delete();
       hierarchy.delete();
@@ -837,5 +937,161 @@ export class TrafficSignDetector {
       );
       return [];
     }
+  }
+
+  private detectTrianglesWithHoughLines(
+    edges: any,
+    scaleFactor: number,
+    imageElement: HTMLImageElement
+  ): DetectedSign[] {
+    const triangleDetections: DetectedSign[] = [];
+
+    try {
+      // Use HoughLinesP to detect line segments
+      const lines = new this.cv.Mat();
+      this.cv.HoughLinesP(
+        edges,
+        lines,
+        1, // rho resolution
+        Math.PI / 180, // theta resolution (1 degree)
+        30, // threshold - minimum votes
+        20 * scaleFactor, // minLineLength
+        10 * scaleFactor // maxLineGap
+      );
+
+      // Group lines into potential triangles
+      const lineSegments = [];
+      for (let i = 0; i < lines.rows; i++) {
+        const x1 = lines.data32S[i * 4];
+        const y1 = lines.data32S[i * 4 + 1];
+        const x2 = lines.data32S[i * 4 + 2];
+        const y2 = lines.data32S[i * 4 + 3];
+
+        const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        const angle = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+
+        lineSegments.push({
+          x1,
+          y1,
+          x2,
+          y2,
+          length,
+          angle,
+          midX: (x1 + x2) / 2,
+          midY: (y1 + y2) / 2,
+        });
+      }
+
+      // Look for triangular patterns
+      for (let i = 0; i < lineSegments.length; i++) {
+        for (let j = i + 1; j < lineSegments.length; j++) {
+          for (let k = j + 1; k < lineSegments.length; k++) {
+            const line1 = lineSegments[i];
+            const line2 = lineSegments[j];
+            const line3 = lineSegments[k];
+
+            // Check if lines could form a triangle
+            const angleDiff1 = Math.abs(line1.angle - line2.angle);
+            const angleDiff2 = Math.abs(line2.angle - line3.angle);
+            const angleDiff3 = Math.abs(line3.angle - line1.angle);
+
+            // Lines should have different angles (not parallel)
+            if (angleDiff1 > 20 && angleDiff2 > 20 && angleDiff3 > 20) {
+              // Check if lines are close to each other (potential triangle)
+              const maxDistance = 50 * scaleFactor;
+              const dist12 = Math.sqrt(
+                (line1.midX - line2.midX) ** 2 + (line1.midY - line2.midY) ** 2
+              );
+              const dist23 = Math.sqrt(
+                (line2.midX - line3.midX) ** 2 + (line2.midY - line3.midY) ** 2
+              );
+              const dist31 = Math.sqrt(
+                (line3.midX - line1.midX) ** 2 + (line3.midY - line1.midY) ** 2
+              );
+
+              if (
+                dist12 < maxDistance &&
+                dist23 < maxDistance &&
+                dist31 < maxDistance
+              ) {
+                // Calculate bounding box of the potential triangle
+                const minX = Math.min(
+                  line1.x1,
+                  line1.x2,
+                  line2.x1,
+                  line2.x2,
+                  line3.x1,
+                  line3.x2
+                );
+                const maxX = Math.max(
+                  line1.x1,
+                  line1.x2,
+                  line2.x1,
+                  line2.x2,
+                  line3.x1,
+                  line3.x2
+                );
+                const minY = Math.min(
+                  line1.y1,
+                  line1.y2,
+                  line2.y1,
+                  line2.y2,
+                  line3.y1,
+                  line3.y2
+                );
+                const maxY = Math.max(
+                  line1.y1,
+                  line1.y2,
+                  line2.y1,
+                  line2.y2,
+                  line3.y1,
+                  line3.y2
+                );
+
+                const width = maxX - minX;
+                const height = maxY - minY;
+                const area = width * height;
+
+                // Filter by reasonable size
+                if (
+                  area > 500 * scaleFactor * scaleFactor &&
+                  area < 50000 * scaleFactor * scaleFactor
+                ) {
+                  const aspectRatio = width / height;
+
+                  // Calculate confidence for triangle detection
+                  let confidence = 0.3; // Base confidence for Hough-detected triangles
+
+                  // Boost for inverted triangles (taller than wide)
+                  if (aspectRatio < 0.9) {
+                    confidence += 0.2;
+                  }
+
+                  // Boost for reasonable triangle proportions
+                  if (aspectRatio > 0.5 && aspectRatio < 1.5) {
+                    confidence += 0.15;
+                  }
+
+                  // Scale back to original image coordinates
+                  triangleDetections.push({
+                    x: Math.round(minX / scaleFactor),
+                    y: Math.round(minY / scaleFactor),
+                    width: Math.round(width / scaleFactor),
+                    height: Math.round(height / scaleFactor),
+                    confidence: Math.min(confidence, 1.0),
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      lines.delete();
+    } catch (error) {
+      console.warn("Error in triangle detection:", error);
+    }
+
+    return triangleDetections;
   }
 }

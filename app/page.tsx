@@ -13,7 +13,9 @@ export default function Home() {
   const [isDetectorReady, setIsDetectorReady] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [detections, setDetections] = useState<DetectedSign[]>([]);
-  const [originalDetections, setOriginalDetections] = useState<DetectedSign[]>([]);
+  const [originalDetections, setOriginalDetections] = useState<DetectedSign[]>(
+    []
+  );
   const [processingSteps, setProcessingSteps] = useState<
     ProcessingSteps[] | null
   >(null);
@@ -28,10 +30,11 @@ export default function Home() {
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   // Confidence filtering state
-  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.5); // 50% default
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.5);
 
   // UI state
-  const [isProcessingStepsCollapsed, setIsProcessingStepsCollapsed] = useState<boolean>(true); // Collapsed by default
+  const [isProcessingStepsCollapsed, setIsProcessingStepsCollapsed] =
+    useState<boolean>(true); // Collapsed by default
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -45,7 +48,7 @@ export default function Home() {
 
       // Pre-select the first model if available
       if (models.length > 0) {
-        setSelectedModels([models[0]]);
+        setSelectedModels([models[1]]);
       }
     } catch (err) {
       console.warn("Failed to load models:", err);
@@ -182,7 +185,7 @@ export default function Home() {
       if (finalDetections.length > 0) {
         // Store original detections for real-time filtering
         setOriginalDetections(finalDetections);
-        
+
         // Initial filtering will be handled by useEffect
         // This ensures consistency with real-time filtering
       } else {
@@ -228,7 +231,7 @@ export default function Home() {
   // Function to get comprehensive image information
   const getImageInfo = useCallback(() => {
     if (!imageRef.current) {
-      alert('No image loaded');
+      alert("No image loaded");
       return;
     }
 
@@ -237,23 +240,23 @@ export default function Home() {
       // Original/Natural dimensions (from the actual image file)
       naturalWidth: img.naturalWidth,
       naturalHeight: img.naturalHeight,
-      
+
       // Displayed dimensions (how it appears on screen)
       displayedWidth: img.width,
       displayedHeight: img.height,
-      
+
       // CSS dimensions
       offsetWidth: img.offsetWidth,
       offsetHeight: img.offsetHeight,
-      
+
       // Other properties
-      src: img.src.substring(0, 50) + '...',
+      src: img.src.substring(0, 50) + "...",
       complete: img.complete,
       crossOrigin: img.crossOrigin,
     };
 
-    console.log('📏 Image Information:', info);
-    
+    console.log("📏 Image Information:", info);
+
     const message = `
 Image Dimensions:
 • Original size: ${info.naturalWidth} × ${info.naturalHeight}px
@@ -262,19 +265,21 @@ Image Dimensions:
 • Image loaded: ${info.complete}
 
 Check console for full details.`;
-    
+
     alert(message);
   }, []);
 
   // Real-time confidence filtering
   useEffect(() => {
     if (originalDetections.length > 0) {
-      const filteredDetections = originalDetections.filter(detection => {
-        const detectionConfidence = detection.confidence;
-        const aiConfidence = detection.classification?.ai_confidence || 0;
-        const maxConfidence = Math.max(detectionConfidence, aiConfidence);
-        return maxConfidence >= confidenceThreshold;
-      });
+      const filteredDetections = originalDetections
+        .filter((detection) => {
+          const detectionConfidence = detection.confidence;
+          const aiConfidence = detection.classification?.ai_confidence || 0;
+          const maxConfidence = Math.max(detectionConfidence, aiConfidence);
+          return maxConfidence >= confidenceThreshold;
+        })
+        .filter((detection) => detection.confidence > confidenceThreshold);
 
       setDetections(filteredDetections);
 
@@ -293,13 +298,20 @@ Check console for full details.`;
           filteredDetections[0]
         );
         setCroppedImageUrl(croppedCanvas.toDataURL());
-      } else if (originalDetections.length > 0 && filteredDetections.length === 0) {
+      } else if (
+        originalDetections.length > 0 &&
+        filteredDetections.length === 0
+      ) {
         // Clear visualizations if all detections are filtered out
         setDetectedImageUrl(null);
         setCroppedImageUrl(null);
       }
 
-      console.log(`🔍 Real-time filter: ${originalDetections.length} → ${filteredDetections.length} detections (${(confidenceThreshold * 100).toFixed(0)}% threshold)`);
+      console.log(
+        `🔍 Real-time filter: ${originalDetections.length} → ${
+          filteredDetections.length
+        } detections (${(confidenceThreshold * 100).toFixed(0)}% threshold)`
+      );
     }
   }, [confidenceThreshold, originalDetections, detector]);
 
@@ -307,7 +319,7 @@ Check console for full details.`;
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold mb-4">
             🚦 AI Traffic Sign Detection & Classification
           </h1>
           <p className="text-lg text-gray-600">
@@ -411,7 +423,7 @@ Check console for full details.`;
                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">
+                        <div className="font-medium">
                           {modelName}
                         </div>
                         <div className="text-sm text-gray-500">
@@ -463,14 +475,14 @@ Check console for full details.`;
                 Current: {(confidenceThreshold * 100).toFixed(0)}% above
               </div>
             </div>
-            
+
             <div className="flex space-x-3">
               <button
                 onClick={() => setConfidenceThreshold(0.9)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  confidenceThreshold === 0.9 
-                    ? 'bg-red-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  confidenceThreshold === 0.9
+                    ? "bg-red-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 90% above
@@ -478,9 +490,9 @@ Check console for full details.`;
               <button
                 onClick={() => setConfidenceThreshold(0.8)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  confidenceThreshold === 0.8 
-                    ? 'bg-orange-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  confidenceThreshold === 0.8
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 80% above
@@ -488,9 +500,9 @@ Check console for full details.`;
               <button
                 onClick={() => setConfidenceThreshold(0.7)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  confidenceThreshold === 0.7 
-                    ? 'bg-yellow-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  confidenceThreshold === 0.7
+                    ? "bg-yellow-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 70% above
@@ -498,22 +510,12 @@ Check console for full details.`;
               <button
                 onClick={() => setConfidenceThreshold(0.5)}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  confidenceThreshold === 0.5 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  confidenceThreshold === 0.5
+                    ? "bg-green-500 text-white"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 50% above
-              </button>
-              <button
-                onClick={() => setConfidenceThreshold(0.0)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  confidenceThreshold === 0.0 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Show all
               </button>
             </div>
           </div>
@@ -525,47 +527,72 @@ Check console for full details.`;
             <p className="text-red-800">{error}</p>
           </div>
         )}
-
-        {/* Original Image */}
-        {uploadedImage && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Original Image</h2>
-              <div className="flex space-x-3">
-                <button
-                  onClick={getImageInfo}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  📏 Image Info
-                </button>
-                <button
-                  onClick={detectTrafficSigns}
-                  disabled={isLoading}
-                  className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                >
-                  {isLoading ? "Detecting..." : "Detect Traffic Signs"}
-                </button>
-              </div>
-            </div>
-            <div className="text-center">
-              <img
-                ref={imageRef}
-                src={uploadedImage}
-                alt="Uploaded image"
-                className="max-w-full max-h-96 mx-auto rounded-lg shadow-sm"
-                crossOrigin="anonymous"
-              />
-              <p className="text-sm text-gray-600 text-center mt-2">
-                Original size: {imageRef.current?.naturalWidth} × {imageRef.current?.naturalHeight}px
-                {imageRef.current?.naturalWidth !== imageRef.current?.width && (
-                  <span className="text-gray-500 ml-2">
-                    (displayed: {imageRef.current?.width} × {imageRef.current?.height}px)
-                  </span>
-                )}
-              </p>
-            </div>
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex space-x-3 justify-end">
+            <button
+              onClick={getImageInfo}
+              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              📏 Image Info
+            </button>
+            <button
+              onClick={detectTrafficSigns}
+              disabled={isLoading}
+              className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              {isLoading ? "Detecting..." : "Detect Traffic Signs"}
+            </button>
           </div>
-        )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Original Image */}
+            {uploadedImage && (
+              <div className="">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold my-2">
+                    Original Image
+                  </h2>
+                  <img
+                    ref={imageRef}
+                    src={uploadedImage}
+                    alt="Uploaded image"
+                    className="max-w-full max-h-96 mx-auto rounded-lg shadow-sm"
+                    crossOrigin="anonymous"
+                  />
+                  <p className="text-sm text-gray-600 text-center mt-2">
+                    Original size: {imageRef.current?.naturalWidth} ×{" "}
+                    {imageRef.current?.naturalHeight}px
+                    {imageRef.current?.naturalWidth !==
+                      imageRef.current?.width && (
+                      <span className="text-gray-500 ml-2">
+                        (displayed: {imageRef.current?.width} ×{" "}
+                        {imageRef.current?.height}px)
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Detected Image with Highlights */}
+            {detectedImageUrl && (
+              <div className="">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold my-2">
+                    Image with Detections
+                  </h2>
+                  <img
+                    src={detectedImageUrl}
+                    alt="Image with detected traffic signs highlighted"
+                    className="max-w-full max-h-96 mx-auto rounded-lg shadow-sm"
+                  />
+                  <p className="text-sm text-gray-600 text-center mt-2">
+                    Processing dimensions: {imageRef.current?.naturalWidth} ×{" "}
+                    {imageRef.current?.naturalHeight}px
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Processing Steps */}
         {processingSteps && (
@@ -574,16 +601,38 @@ Check console for full details.`;
               <div className="flex items-center space-x-3">
                 <h2 className="text-xl font-semibold">🔬 Processing Steps</h2>
                 <button
-                  onClick={() => setIsProcessingStepsCollapsed(!isProcessingStepsCollapsed)}
+                  onClick={() =>
+                    setIsProcessingStepsCollapsed(!isProcessingStepsCollapsed)
+                  }
                   className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   {isProcessingStepsCollapsed ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 15l7-7 7 7"
+                      />
                     </svg>
                   )}
                 </button>
@@ -622,7 +671,8 @@ Check console for full details.`;
             {isProcessingStepsCollapsed && (
               <div className="text-center py-4">
                 <p className="text-gray-500 text-sm">
-                  Click to expand and view {processingSteps.length} processing steps
+                  Click to expand and view {processingSteps.length} processing
+                  steps
                 </p>
               </div>
             )}
@@ -835,26 +885,6 @@ Check console for full details.`;
             </div>
           </div>
         )}
-
-        {/* Detected Image with Highlights */}
-        {detectedImageUrl && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">
-              Image with Detections
-            </h2>
-            <p className="text-sm text-gray-600 text-center mb-2">
-              Processing dimensions: {imageRef.current?.naturalWidth} × {imageRef.current?.naturalHeight}px
-            </p>
-            <div className="text-center">
-              <img
-                src={detectedImageUrl}
-                alt="Image with detected traffic signs highlighted"
-                className="max-w-full max-h-96 mx-auto rounded-lg shadow-sm"
-              />
-            </div>
-          </div>
-        )}
-
         {/* Cropped Traffic Sign */}
         {croppedImageUrl && (
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -882,7 +912,6 @@ Check console for full details.`;
             </p>
           </div>
         )}
-
         {/* Loading Indicator */}
         {isLoading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
