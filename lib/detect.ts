@@ -166,7 +166,7 @@ export class TrafficSignDetector {
     const contours = new this.cv.MatVector();
     const hierarchy = new this.cv.Mat();
     const contourDisplay = src.clone();
-    let kernel: any = null; // Declare kernel variable
+    let kernel: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
 
     try {
       // Step 2: Original image (after upscaling if applied)
@@ -327,8 +327,7 @@ export class TrafficSignDetector {
       // Additional triangle detection using Hough lines
       const triangleDetections = this.detectTrianglesWithHoughLines(
         edges,
-        scaleFactor,
-        imageElement
+        scaleFactor
       );
 
       // Merge triangle detections with main detections, avoiding duplicates
@@ -940,9 +939,8 @@ export class TrafficSignDetector {
   }
 
   private detectTrianglesWithHoughLines(
-    edges: any,
-    scaleFactor: number,
-    imageElement: HTMLImageElement
+    edges: unknown,
+    scaleFactor: number
   ): DetectedSign[] {
     const triangleDetections: DetectedSign[] = [];
 
